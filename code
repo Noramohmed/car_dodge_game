@@ -1,0 +1,103 @@
+#include <graphics.h>
+#include <conio.h>
+#include <dos.h>   // علشان دوال الصوت
+#include <stdio.h>
+#include <stdlib.h>
+
+int carX = 200, carY = 400;
+int obstacleX = 200, obstacleY = 0;
+int score = 0;
+int speed = 5;
+
+void drawRoad() {
+    setcolor(WHITE);
+    line(100, 0, 100, 480);
+    line(300, 0, 300, 480);
+
+    setfillstyle(SOLID_FILL, DARKGRAY);
+    bar(101, 0, 299, 480);
+}
+
+void drawCar() {
+    setcolor(RED);
+    setfillstyle(SOLID_FILL, RED);
+    rectangle(carX, carY, carX + 20, carY + 40);
+    floodfill(carX + 10, carY + 20, RED);
+}
+
+void drawObstacle() {
+    setcolor(BLUE);
+    setfillstyle(SOLID_FILL, BLUE);
+    rectangle(obstacleX, obstacleY, obstacleX + 20, obstacleY + 20);
+    floodfill(obstacleX + 10, obstacleY + 10, BLUE);
+}
+
+int checkCollision() {
+    if (obstacleY + 20 >= carY && obstacleY <= carY + 40 &&
+        obstacleX + 20 >= carX && obstacleX <= carX + 20) {
+        return 1;
+    }
+    return 0;
+}
+
+void resetObstacle() {
+    obstacleX = 110 + rand() % 160; // Random position between lines
+    obstacleY = 0;
+}
+
+void showGameOver() {
+    setcolor(RED);
+    settextstyle(DEFAULT_FONT, HORIZ_DIR, 3);
+    outtextxy(120, 200, "GAME OVER!");
+    
+    char buf[50];
+    sprintf(buf, "Score: %d", score);
+    outtextxy(140, 250, buf);
+}
+
+int main() {
+    int gd = DETECT, gm;
+    initgraph(&gd, &gm, "");
+
+    while (1) {
+        cleardevice();
+        drawRoad();
+        drawCar();
+        drawObstacle();
+        
+        obstacleY += speed;
+
+        if (obstacleY > 480) {
+            resetObstacle();
+            score++;
+            if (score % 5 == 0) speed++;
+        }
+
+        if (kbhit()) {
+            char ch = getch();
+            if (ch == 75 && carX > 110) carX -= 20; // Left arrow
+            if (ch == 77 && carX < 270) carX += 20; // Right arrow
+        }
+
+        if (checkCollision()) {
+            sound(1000); // صوت عند التصادم
+            delay(300);
+            nosound();
+            cleardevice();
+            showGameOver();
+            break;
+        }
+
+        if (score % 2 == 0) { // كل ما تكسب 2
+            sound(500); 
+            delay(50);
+            nosound();
+        }
+
+        delay(50);
+    }
+
+    getch();
+    closegraph();
+    return 0;
+}
