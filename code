@@ -1,13 +1,18 @@
 #include <graphics.h>
 #include <conio.h>
-#include <dos.h>   // علشان دوال الصوت
+#include <dos.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 int carX = 200, carY = 400;
 int obstacleX = 200, obstacleY = 0;
 int score = 0;
 int speed = 5;
+int carSpeed = 5; // Player-controlled car speed
+int level = 1;
+int obstacleType = 0; // 0: small, 1: large
+int shake = 0; // For camera shake effect
 
 void drawRoad() {
     setcolor(WHITE);
@@ -16,85 +21,173 @@ void drawRoad() {
 
     setfillstyle(SOLID_FILL, DARKGRAY);
     bar(101, 0, 299, 480);
+
+    // Moving road lines for motion effect
+    setcolor(YELLOW);
+    for (int i = 0; i < 480; i += 40) {
+        line(200, (i + (obstacleY % 40)) % 480, 200, (i + 20 + (obstacleY % 40)) % 480);
+    }
 }
 
 void drawCar() {
+    // Shadow under the car
+    setcolor(DARKGRAY);
+    setfillstyle(SOLID_FILL, DARKGRAY);
+    fillellipse(carX + 10, carY + 45, 15, 5);
+
+    // Car body
     setcolor(RED);
     setfillstyle(SOLID_FILL, RED);
     rectangle(carX, carY, carX + 20, carY + 40);
     floodfill(carX + 10, carY + 20, RED);
+
+    // Front window
+    setcolor(LIGHTBLUE);
+    setfillstyle(SOLID_FILL, LIGHTBLUE);
+    rectangle(carX + 4, carY + 5, carX + 16, carY + 15);
+    floodfill(carX + 10, carY + 10, LIGHTBLUE);
+
+    // Rear window
+    setcolor(LIGHTBLUE);
+    setfillstyle(SOLID_FILL, LIGHTBLUE);
+    rectangle(carX + 4, carY + 25, carX + 16, carY + 35);
+    floodfill(carX + 10, carY + 30, LIGHTBLUE);
+
+    // Headlights
+    setcolor(YELLOW);
+    setfillstyle(SOLID_FILL, YELLOW);
+    fillellipse(carX + 5, carY, 2, 2);
+    fillellipse(carX + 15, carY, 2, 2);
+
+    // Wheels with rotation effect
+    static int wheelPhase = 0;
+    wheelPhase = (wheelPhase + carRosemary) % 360;
+    setcolor(BLACK);
+    setfillstyle(SOLID_FILL, BLACK);
+    fillellipse(carX + 5, carY + 40, 3, 3);
+    fillellipse(carX + 15, carY + 40, 3, 3);
+    setcolor(WHITE);
+    line(carX + 5, carY + 40, carX + 5 + 3 * cos(wheelPhase * 3.14 / 180), carY + 40 + 3 * sin(wheelPhase * 3.14 / 180));
+    line(carX + 15, carY + 40, carX + 15 + 3 * cos(wheelPhase * 3.14 / 180), carY + 40 + 3 * sin(wheelPhase * 3.14 / 180));
 }
 
 void drawObstacle() {
-    setcolor(BLUE);
-    setfillstyle(SOLID_FILL, BLUE);
-    rectangle(obstacleX, obstacleY, obstacleX + 20, obstacleY + 20);
-    floodfill(obstacleX + 10, obstacleY + 10, BLUE);
+    setcolor(obstacleType == 0 ? BLUE : GREEN);
+    setfillstyle(SOLID_FILL, obstacleType == 0 ? BLUE : GREEN);
+    int width = obstacleType == 0 ? 20 : 30;
+    rectangle(obstacleX, obstacleY, obstacleX + width, obstacleY + 20);
+    floodfill(obstacleX + width / 2, obstacleY + 10, obstacleType == 0 ? BLUE : GREEN);
+}
+
+void drawBackground() {
+    // Sky
+    setcolor(CYAN);
+    setfillstyle(SOLID_FILL, CYAN);
+    bar(0, 0, 640, 100);
+    
+    // Moving clouds
+    static int cloudX = 0;
+    cloudX = (cloudX + 1) % 640;
+    setcolor(WHITE);
+    setfillstyle(SOLID_FILL, WHITE);
+    fillellipse(cloudX, 50, 30, 15);
+    fillellipse(cloudX + 40, 60, 30, 15);
 }
 
 int checkCollision() {
+    int obsWidth = obstacleType == 0 ? 20 : 30;
     if (obstacleY + 20 >= carY && obstacleY <= carY + 40 &&
-        obstacleX + 20 >= carX && obstacleX <= carX + 20) {
+        obstacleX + obsWidth >= carX && obstacleX <= carX + 20) {
         return 1;
     }
     return 0;
 }
 
 void resetObstacle() {
-    obstacleX = 110 + rand() % 160; // Random position between lines
+    obstacleX = 110 + rand() % 160;
     obstacleY = 0;
+    obstacleType = rand() % 2; // Randomly choose small or large obstacle
 }
 
 void showGameOver() {
     setcolor(RED);
     settextstyle(DEFAULT_FONT, HORIZ_DIR, 3);
-    outtextxy(120, 200, "GAME OVER!");
+    outtextxy(120 + shake, 200, "GAME OVER!");
     
     char buf[50];
+    sprintf(buf, "Score: %d  Level: %d", score, level);
+    outtextxy(140 + shake, 250, buf);
+}
+
+void drawUI() {
+    char buf[50];
+    setcolor(WHITE);
+    settextstyle(DEFAULT_FONT, HORIZ_DIR, 1);
     sprintf(buf, "Score: %d", score);
-    outtextxy(140, 250, buf);
+    outtextxy(10, 10, buf);
+    sprintf(buf, "Speed: %d", carSpeed * 10);
+    outtextxy(10, 30, buf);
+    sprintf(buf, "Level: %d", level);
+    outtextxy(10, 50, buf);
 }
 
 int main() {
     int gd = DETECT, gm;
     initgraph(&gd, &gm, "");
+    srand(time(NULL));
 
     while (1) {
         cleardevice();
+        
+        // Apply camera shake if active
+        if (shake > 0) {
+            setviewport(shake % 5, shake % 5, 640, 480, 1);
+            shake--;
+        } else {setviewport(0, 0, 640, 480, 1);
+        }
+
+        drawBackground();
         drawRoad();
         drawCar();
         drawObstacle();
-        
+        drawUI();
+
         obstacleY += speed;
 
         if (obstacleY > 480) {
             resetObstacle();
             score++;
-            if (score % 5 == 0) speed++;
+            if (score % 10 == 0) { // Level up every 10 points
+                level++;
+                speed += 2;
+            }
         }
 
         if (kbhit()) {
             char ch = getch();
             if (ch == 75 && carX > 110) carX -= 20; // Left arrow
             if (ch == 77 && carX < 270) carX += 20; // Right arrow
+            if (ch == 72 && carSpeed < 10) carSpeed++; // Up arrow (accelerate)
+            if (ch == 80 && carSpeed > 1) carSpeed--; // Down arrow (decelerate)
         }
 
         if (checkCollision()) {
-            sound(1000); // صوت عند التصادم
+            sound(1000);
             delay(300);
             nosound();
+            shake = 10; // Trigger camera shake
             cleardevice();
             showGameOver();
             break;
         }
 
-        if (score % 2 == 0) { // كل ما تكسب 2
-            sound(500); 
+        if (score % 2 == 0) {
+            sound(500);
             delay(50);
             nosound();
         }
 
-        delay(50);
+        delay(50 - carSpeed * 2); // Adjust game speed based on car speed
     }
 
     getch();
